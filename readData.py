@@ -33,5 +33,5 @@ def get_data(path):
     return data
 
 if __name__ == '__main__':
-    data = get_data("input/point-cloud-segmentation/train/bildstein_station1_xyz_intensity_rgb.txt")
-    print(data["point"].shape,data["feat"].shape,data["intensity"].shape,data["label"].shape)
+    train_data = get_data("input/point-cloud-segmentation/train/bildstein_station3_xyz_intensity_rgb.txt")
+    val_data =  get_data("input/point-cloud-segmentation/val/bildstein_station3_xyz_intensity_rgb.txt")
