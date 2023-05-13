@@ -1,5 +1,10 @@
 import numpy as np
 import pandas as pd
+import logging
+
+log = logging.getLogger(__name__)
+
+
 
 def get_data(path):
     print("get_data called {}".format(path))
@@ -35,3 +40,5 @@ def get_data(path):
 if __name__ == '__main__':
     train_data = get_data("input/point-cloud-segmentation/train/bildstein_station3_xyz_intensity_rgb.txt")
     val_data =  get_data("input/point-cloud-segmentation/val/bildstein_station3_xyz_intensity_rgb.txt")
+
+
