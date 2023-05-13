@@ -14,45 +14,42 @@ def get_data(path):
                      delim_whitespace=True,
                      dtype=np.float32).values
 
-    points = pc[:, 0:3]
-    feat = pc[:, [4, 5, 6]]
-    intensity = pc[:, 3]
+    #points = pc[:, 0:3]
+    #feat = pc[:, [4, 5, 6]]
+    #intensity = pc[:, 3]
 
-    points = np.array(points, dtype=np.float32)
-    feat = np.array(feat, dtype=np.float32)
-    intensity = np.array(intensity, dtype=np.float32)
-
+    input = np.array(pc, dtype=np.float32)
+    num = len(input)
+    print(num)
+    reduced_input = input[:100000]
     labels = pd.read_csv(path.replace(".txt", ".labels"),
                          header=None,
                          delim_whitespace=True,
-                         dtype=np.int32).values
-    labels = np.array(labels, dtype=np.int32).reshape((-1,))
-
-    data = {
-        'point': points,
-        'feat': feat,
-        'intensity': intensity,
-        'label': labels
-    }
-
-    return data
+                         dtype=np.float32).values
+    labels = np.array(labels, dtype=np.float32).reshape((-1,))
+    reduced_labels= labels[:100000]
+    reduced_input = torch.from_numpy(reduced_input)
+    reduced_labels = torch.from_numpy(reduced_labels)
+    print(reduced_input.shape, reduced_labels.shape)
+    return reduced_input,reduced_labels
 # PyTorch models inherit from torch.nn.Module
 class GarmentClassifier(nn.Module):
     def __init__(self):
         super(GarmentClassifier, self).__init__()
-        self.conv1 = nn.Conv2d(3, 16, 5)
-        self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(16, 16, 5)
-        self.fc1 = nn.Linear(16 * 4 * 4, 120)
-        self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, 8)
+        self.leakyRelu = nn.LeakyReLU()
+        self.conv1 = nn.Conv1d(7, 16,1)
+        #self.pool = nn.MaxPool1d(2, 2)
+        self.conv2 = nn.Conv1d(16, 100,1)
+        self.fc1 = nn.Linear(100,50)
+        self.fc2 = nn.Linear(50, 25)
+        self.fc3 = nn.Linear(25, 8)
 
     def forward(self, x):
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
-        x = x.view(-1, 16 * 4 * 4)
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
+        x = self.leakyRelu(self.conv1(x))
+        x = self.leakyRelu(self.conv2(x))
+        #x = x.view(-1, 16 * 4 * 4)
+        x = self.leakyRelu(self.fc1(x))
+        x = self.leakyRelu(self.fc2(x))
         x = self.fc3(x)
         return x
 
@@ -64,57 +61,58 @@ def train_one_epoch(epoch_index, training_loader):
     running_loss = 0.
     last_loss = 0
     optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
-
     # Here, we use enumerate(training_loader) instead of
     # iter(training_loader) so that we can track the batch
     # index and do some intra-epoch reporting
     for i, data in enumerate(training_loader):
         # Every data instance is an input + label pair
-        inputs, labels = data['points']. data['label']
-
-        # Zero your gradients for every batch!
+        inputs, labels = data
+        labels = labels.type(torch.LongTensor)
+        inputs = inputs.reshape(7,100)
+    # Zero your gradients for every batch!
         optimizer.zero_grad()
 
         # Make predictions for this batch
         outputs = model(inputs)
-
+        #print(outputs.shape)
         # Compute the loss and its gradients
         loss = loss_fn(outputs, labels)
         loss.backward()
 
-        # Adjust learning weights
+    # Adjust learning weights
         optimizer.step()
 
         # Gather data and report
-        running_loss += loss.item()
+        running_loss += loss
         if i % 1000 == 999:
-            last_loss = running_loss / 1000 # loss per batch
-            print('  batch {} loss: {}'.format(i + 1, last_loss))
+            last_loss = loss # loss per batch
+            print('  batch {} loss: {}'.format(1, last_loss))
             tb_x = epoch_index * len(training_loader) + i + 1
-
-            running_loss = 0.
+            running_loss = 0
 
     return last_loss
 
 epoch_number = 0
 
-EPOCHS = 5
+EPOCHS = 50
 
 best_vloss = 1000000
 start_time = time.time()
-train_data = get_data("input/point-cloud-segmentation/train/mock_data.txt")
+train_data,train_label = get_data("input/point-cloud-segmentation/train/bildstein_station1_xyz_intensity_rgb.txt")
 middle_time = time.time()
 elapsed_time = middle_time - start_time
 print("Elapsed time train: ", elapsed_time)
-val_data =  get_data("input/point-cloud-segmentation/val/mock_data.txt")
+val_data,val_label =  get_data("input/point-cloud-segmentation/val/bildstein_station3_xyz_intensity_rgb.txt")
 end_time = time.time()
 elapsed_time = end_time - middle_time
 print("Elapsed time val: ", elapsed_time)
-training_loader = torch.utils.data.DataLoader(train_data, batch_size=40, shuffle=True)
-validation_loader = torch.utils.data.DataLoader(val_data, batch_size=40, shuffle=False)
-end_time_final = time.time()
-elapsed_time = end_time_final - end_time
-print("Elapsed time val: ", elapsed_time)
+train = torch.utils.data.TensorDataset(train_data, train_label)
+val = torch.utils.data.TensorDataset(val_data, val_label)
+training_loader = torch.utils.data.DataLoader(train, batch_size=100, shuffle=True)
+validation_loader = torch.utils.data.DataLoader(val, batch_size=100, shuffle=False)
+#end_time_final = time.time()
+#elapsed_time = end_time_final - end_time
+#print("Elapsed time val: ", elapsed_time)
 
 
 for epoch in range(EPOCHS):
@@ -128,15 +126,16 @@ for epoch in range(EPOCHS):
     model.train(False)
 
     running_vloss = 0.0
-    for i, data in enumerate(validation_loader):
-        vinputs, vlabels = data['points']. data['label']
+    for i, vdata in enumerate(validation_loader):
+        vinputs, vlabels = vdata
+        vinputs = vinputs.reshape(7, 100)
+        vlabels = vlabels.type(torch.LongTensor)
         voutputs = model(vinputs)
         vloss = loss_fn(voutputs, vlabels)
         running_vloss += vloss
 
-    avg_vloss = running_vloss / (i+1)
-    print('LOSS train {} valid {}'.format(avg_loss, avg_vloss))
-
+    avg_vloss = running_vloss / (i + 1)
+    print('LOSS train {} val {}'.format(avg_loss, avg_vloss))
     # Log the running loss averaged per batch
     # for both training and validation
 

@@ -29,7 +29,7 @@ def get_data(path):
     labels = np.array(labels, dtype=np.int32).reshape((-1,))
 
     data = {
-        'point': points,
+        'points': points,
         'feat': feat,
         'intensity': intensity,
         'label': labels
