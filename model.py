@@ -42,7 +42,7 @@ class GarmentClassifier(nn.Module):
         self.conv2 = nn.Conv1d(16, 100,1)
         self.fc1 = nn.Linear(100,50)
         self.fc2 = nn.Linear(50, 20)
-        self.fc3 = nn.Linear(20, 8)
+        self.fc3 = nn.Linear(20, 9)
 
     def forward(self, x):
         x = self.leakyRelu(self.conv1(x))
@@ -59,7 +59,6 @@ loss_fn = torch.nn.CrossEntropyLoss()
 
 def train_one_epoch(epoch_index, training_loader):
     running_loss = 0.
-    last_loss = 0
     optimizer = torch.optim.SGD(model.parameters(), lr=0.002, momentum=0.9)
     # Here, we use enumerate(training_loader) instead of
     # iter(training_loader) so that we can track the batch
@@ -85,11 +84,7 @@ def train_one_epoch(epoch_index, training_loader):
 
         # Gather data and report
         running_loss += loss
-        if i % 10000 == 9999:
-            last_loss = loss # loss per batch
-            print('  batch {} loss: {}'.format(1, last_loss))
-            tb_x = epoch_index * len(training_loader) + i + 1
-            running_loss = 0
+    last_loss = running_loss / (i + 1)
 
     return last_loss
 
@@ -128,7 +123,6 @@ for epoch in range(EPOCHS):
 
     running_vloss = 0.0
     for i, vdata in enumerate(validation_loader):
-        print(i)
         vinputs, vlabels = vdata
         vinputs = vinputs.reshape(7, 100)
         vlabels = vlabels.type(torch.LongTensor)
