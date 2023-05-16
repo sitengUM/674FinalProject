@@ -21,13 +21,13 @@ def get_data(path):
     input = np.array(pc, dtype=np.float32)
     num = len(input)
     print(num)
-    reduced_input = input[:100000]
+    reduced_input = input[:1000000]
     labels = pd.read_csv(path.replace(".txt", ".labels"),
                          header=None,
                          delim_whitespace=True,
                          dtype=np.float32).values
     labels = np.array(labels, dtype=np.float32).reshape((-1,))
-    reduced_labels= labels[:100000]
+    reduced_labels= labels[:1000000]
     reduced_input = torch.from_numpy(reduced_input)
     reduced_labels = torch.from_numpy(reduced_labels)
     print(reduced_input.shape, reduced_labels.shape)
@@ -41,8 +41,8 @@ class GarmentClassifier(nn.Module):
         #self.pool = nn.MaxPool1d(2, 2)
         self.conv2 = nn.Conv1d(16, 100,1)
         self.fc1 = nn.Linear(100,50)
-        self.fc2 = nn.Linear(50, 25)
-        self.fc3 = nn.Linear(25, 8)
+        self.fc2 = nn.Linear(50, 20)
+        self.fc3 = nn.Linear(20, 8)
 
     def forward(self, x):
         x = self.leakyRelu(self.conv1(x))
@@ -60,7 +60,7 @@ loss_fn = torch.nn.CrossEntropyLoss()
 def train_one_epoch(epoch_index, training_loader):
     running_loss = 0.
     last_loss = 0
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.002, momentum=0.9)
     # Here, we use enumerate(training_loader) instead of
     # iter(training_loader) so that we can track the batch
     # index and do some intra-epoch reporting
@@ -74,6 +74,7 @@ def train_one_epoch(epoch_index, training_loader):
 
         # Make predictions for this batch
         outputs = model(inputs)
+        #print(outputs, labels)
         #print(outputs.shape)
         # Compute the loss and its gradients
         loss = loss_fn(outputs, labels)
@@ -84,7 +85,7 @@ def train_one_epoch(epoch_index, training_loader):
 
         # Gather data and report
         running_loss += loss
-        if i % 1000 == 999:
+        if i % 10000 == 9999:
             last_loss = loss # loss per batch
             print('  batch {} loss: {}'.format(1, last_loss))
             tb_x = epoch_index * len(training_loader) + i + 1
@@ -94,7 +95,7 @@ def train_one_epoch(epoch_index, training_loader):
 
 epoch_number = 0
 
-EPOCHS = 50
+EPOCHS = 20
 
 best_vloss = 1000000
 start_time = time.time()
@@ -127,10 +128,12 @@ for epoch in range(EPOCHS):
 
     running_vloss = 0.0
     for i, vdata in enumerate(validation_loader):
+        print(i)
         vinputs, vlabels = vdata
         vinputs = vinputs.reshape(7, 100)
         vlabels = vlabels.type(torch.LongTensor)
         voutputs = model(vinputs)
+        #print(voutputs.shape, vlabels)
         vloss = loss_fn(voutputs, vlabels)
         running_vloss += vloss
 
