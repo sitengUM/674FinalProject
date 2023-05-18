@@ -32,6 +32,10 @@ MANIFEST
 *.manifest
 *.spec
 
+# Data
+PVT/data/s3dis
+
+
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt

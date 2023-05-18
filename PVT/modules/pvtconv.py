@@ -14,9 +14,9 @@ def rand_bbox(size, lam):
     y = size[3]
     z = size[4]
     cut_rat = np.sqrt(1. - lam)
-    cut_x = np.int(x * cut_rat)
-    cut_y = np.int(y * cut_rat)
-    cut_z = np.int(y * cut_rat)
+    cut_x = np.int32(x * cut_rat)
+    cut_y = np.int32(y * cut_rat)
+    cut_z = np.int32(y * cut_rat)
 
     cx = np.random.randint(x)
     cy = np.random.randint(y)
@@ -361,5 +361,10 @@ class SemPVTConv(nn.Module):
         voxel_features = self.voxel_encoder(voxel_features)
         voxel_features = self.SE(voxel_features)
         voxel_features = F.trilinear_devoxelize(voxel_features, voxel_coords, self.resolution, self.training)
-        fused_features = voxel_features + self.point_features(features)
+        pos = coords.permute(0, 2, 1)
+        rel_pos = pos[:, :, None, :] - pos[:, None, :, :]
+        rel_pos = rel_pos.sum(dim=-1)
+        #one= self.point_features(features)
+        #print(one)
+        fused_features = voxel_features + self.point_features(features,rel_pos)
         return fused_features, coords

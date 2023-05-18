@@ -145,7 +145,7 @@ def main():
                 xyz_max = np.amax(xyz, axis=0, keepdims=True)
                 block_size = (args.block_size, args.block_size, 2 * (xyz_max[0, -1] - xyz_min[0, -1]))
                 # Note: Don't split over z axis.
-                xyz_blocks = np.floor((xyz - xyz_min) / block_size).astype(np.int)
+                xyz_blocks = np.floor((xyz - xyz_min) / block_size).astype(np.int32)
 
                 print(f'{datetime.now()}-Collecting points belong to each block...')
                 blocks, point_block_indices, block_point_counts = np.unique(xyz_blocks, return_inverse=True,
@@ -178,7 +178,7 @@ def main():
 
                         block_point_indices[nbr_block_idx] = np.concatenate(
                             [block_point_indices[nbr_block_idx], block_point_indices[block_idx]], axis=-1)
-                        block_point_indices[block_idx] = np.array([], dtype=np.int)
+                        block_point_indices[block_idx] = np.array([], dtype=np.int32)
                         block_merge_count = block_merge_count + 1
                         break
                 print(f'{datetime.now()}-{block_merge_count} of {blocks.shape[0]} blocks are merged.')
@@ -196,7 +196,7 @@ def main():
                         continue
                     block_points = xyz[point_indices]
                     block_min = np.amin(block_points, axis=0, keepdims=True)
-                    xyz_grids = np.floor((block_points - block_min) / args.grid_size).astype(np.int)
+                    xyz_grids = np.floor((block_points - block_min) / args.grid_size).astype(np.int32)
                     grids, point_grid_indices, grid_point_counts = np.unique(xyz_grids, return_inverse=True,
                                                                              return_counts=True, axis=0)
                     grid_point_indices = np.split(np.argsort(point_grid_indices), np.cumsum(grid_point_counts[:-1]))
