@@ -5,7 +5,7 @@ import torch
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
 from data import Semantic3D
-from model.sempvt import pvt_semseg
+from model.semantic3Dpvt import pvt_semantic3Dseg
 import numpy as np
 from torch.utils.data import DataLoader
 from util import cal_loss, IOStream
@@ -39,6 +39,8 @@ def calculate_sem_IoU(pred_np, seg_np):
 def train(args, io):
     train_loader = DataLoader(Semantic3D(partition='train', num_points=args.num_points),
                               num_workers=8, batch_size=args.batch_size, shuffle=True, drop_last=True)
+    for data, seg in train_loader:
+        print(len(data), data, seg, len(seg))
     test_loader = DataLoader(Semantic3D(partition='test', num_points=args.num_points),
                              num_workers=8, batch_size=args.test_batch_size, shuffle=False, drop_last=False)
 
@@ -46,7 +48,7 @@ def train(args, io):
 
     # Try to load models
     if args.model == 'pvt':
-        model = pvt_semseg(args).to(device)
+        model = pvt_semantic3Dseg(args).to(device)
     else:
         raise Exception("Not implemented")
 
@@ -144,14 +146,14 @@ def test(args, io):
     for test_area in range(1,7):
         test_area = str(test_area)
         if (args.test_area == 'all') or (test_area == args.test_area):
-            test_loader = DataLoader(S3DIS(partition='test', num_points=args.num_points, test_area=test_area),
+            test_loader = DataLoader(Semantic3D(partition='test', num_points=args.num_points),
                                      batch_size=args.test_batch_size, shuffle=False, drop_last=False)
 
             device = torch.device("cuda" if args.cuda else "cpu")
 
             #Try to load models
             if args.model == 'pvt':
-                model = pvt_semseg(args).to(device)
+                model = pvt_semantic3Dseg(args).to(device)
             else:
                 raise Exception("Not implemented")
             model.load_state_dict(torch.load(os.path.join(args.model_root, 'model_seg_%s.t7' % test_area)))
@@ -207,15 +209,13 @@ def test(args, io):
 if __name__ == "__main__":
     # Training settings
     parser = argparse.ArgumentParser(description='Point Cloud Part Segmentation')
-    parser.add_argument('--exp_name', type=str, default='semseg', metavar='N',
+    parser.add_argument('--exp_name', type=str, default='semantic3Dseg', metavar='N',
                         help='Name of the experiment')
     parser.add_argument('--model', type=str, default='pvt', metavar='N',
                         choices=['pvt'],
                         help='Model to use, [pvt]')
-    parser.add_argument('--dataset', type=str, default='S3DIS', metavar='N',
-                        choices=['S3DIS'])
-    parser.add_argument('--test_area', type=str, default='5', metavar='N',
-                        choices=['1', '2', '3', '4', '5', '6', 'all'])
+    parser.add_argument('--dataset', type=str, default='Semantic3D', metavar='N',
+                        choices=['Semantic3D'])
     parser.add_argument('--batch_size', type=int, default=8, metavar='batch_size',
                         help='Size of batch)')
     parser.add_argument('--test_batch_size', type=int, default=8, metavar='batch_size',
@@ -241,7 +241,7 @@ if __name__ == "__main__":
                         help='num of points to use')
     parser.add_argument('--dropout', type=float, default=0.5,
                         help='dropout rate')
-    parser.add_argument('--model_root', type=str, default='checkpoints/semseg', metavar='N',
+    parser.add_argument('--model_root', type=str, default='checkpoints/semantic3Dseg', metavar='N',
                         help='Pretrained model root')
     args = parser.parse_args()
 
