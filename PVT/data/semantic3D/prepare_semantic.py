@@ -11,6 +11,7 @@ def main():
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     default_data =os.path.join(BASE_DIR,'bildstein_station1_xyz_intensity_rgb.txt')
     default_label =os.path.join(BASE_DIR,'bildstein_station1_xyz_intensity_rgb.labels')
+    default_h5dir = os.path.join(BASE_DIR,'h5dir')
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--data', dest='data_dir', default=default_data,
                         help=f'Path to Semantic3D data (default is {default_data})')
@@ -30,7 +31,7 @@ def main():
     max_num_points = args.max_num_points
 
     batch_size = 256
-    data = np.zeros((batch_size, max_num_points, 7))
+    data = np.zeros((batch_size, max_num_points, 10))
     data_num = np.zeros(batch_size, dtype=np.int32)
     label = np.zeros(batch_size, dtype=np.int32)
     label_seg = np.zeros((batch_size, max_num_points), dtype=np.int32)
@@ -39,12 +40,14 @@ def main():
     #HAVEN'T LOOKED AT BELOW YET
 
     # Modified according to PointNet convensions.
-    xyzrgb = np.load(default_data)
+    xyzrgb = np.loadtxt(default_data)
     xyzrgb[:, 0:3] -= np.amin(xyzrgb, axis=0)[0:3]
 
-    labels = np.load(default_label).astype(int).flatten()
+    labels = np.loadtxt(default_label).astype(int).flatten()
 
-    xyz, rgb = np.split(xyzrgb, [3], axis=-1)
+    xyz, intensity_rgb = np.split(xyzrgb, [3], axis=-1)
+    intensity, rgb =  np.split(intensity_rgb, [0], axis=-1)
+    print("here", xyz.shape, rgb.shape)
     xyz_min = np.amin(xyz, axis=0, keepdims=True)
     xyz_max = np.amax(xyz, axis=0, keepdims=True)
     xyz_center = (xyz_min + xyz_max) / 2
@@ -72,7 +75,7 @@ def main():
         blocks, point_block_indices, block_point_counts = np.unique(xyz_blocks, return_inverse=True,
                                                                     return_counts=True, axis=0)
         block_point_indices = np.split(np.argsort(point_block_indices), np.cumsum(block_point_counts[:-1]))
-        print(f'{datetime.now()}-{dataset} is split into {blocks.shape[0]} blocks.')
+        print(f'{datetime.now()}- is split into {blocks.shape[0]} blocks.')
 
         block_to_block_idx_map = dict()
         for block_idx in range(blocks.shape[0]):
@@ -163,20 +166,23 @@ def main():
 
             block_xyzrgb = np.concatenate([x, y, z, block_rgb, norm_x, norm_y, norm_z], axis=-1)
             for block_split_idx in range(block_split_num):
+                #print(block_split_num, point_nums)
                 start = starts[block_split_idx]
                 point_num = point_nums[block_split_idx]
+
                 end = start + point_num
+                #print(start, point_num, block_xyzrgb[start:end, :].shape)
                 idx_in_batch = idx % batch_size
                 data[idx_in_batch, 0:point_num, ...] = block_xyzrgb[start:end, :]
                 data_num[idx_in_batch] = point_num
-                label[idx_in_batch] = dataset_idx  # won't be used...
+                label[idx_in_batch] = 0  # won't be used...
                 label_seg[idx_in_batch, 0:point_num] = block_labels[start:end]
                 indices_split_to_full[idx_in_batch, 0:point_num] = point_indices[start:end]
 
                 if ((idx + 1) % batch_size == 0) or \
                         (block_idx == idx_last_non_empty_block and block_split_idx == block_split_num - 1):
                     item_num = idx_in_batch + 1
-                    filename_h5 = os.path.join(folder, dataset, f'{offset_name}_{idx_h5:d}.h5')
+                    filename_h5 = os.path.join(default_h5dir, f'{offset_name}_{idx_h5:d}.h5')
                     print(f'{datetime.now()}-Saving {filename_h5}...')
 
                     file = h5py.File(filename_h5, 'w')
@@ -186,104 +192,6 @@ def main():
                     file.create_dataset('label_seg', data=label_seg[0:item_num, ...])
                     file.create_dataset('indices_split_to_full', data=indices_split_to_full[0:item_num, ...])
                     file.close()
-
-                    if args.save_ply:
-                        print(f'{datetime.now()}-Saving ply of {filename_h5}...')
-                        filepath_label_ply = os.path.join(folder, dataset, 'ply_label',
-                                                          f'label_{offset_name}_{idx_h5:d}')
-                        save_ply_property_batch(data[0:item_num, :, 0:3], label_seg[0:item_num, ...],
-                                                filepath_label_ply, data_num[0:item_num, ...], 14)
-
-                        filepath_rgb_ply = os.path.join(folder, dataset, 'ply_rgb',
-                                                        f'rgb_{offset_name}_{idx_h5:d}')
-                        save_ply_color_batch(data[0:item_num, :, 0:3], data[0:item_num, :, 3:6] * 255,
-                                             filepath_rgb_ply, data_num[0:item_num, ...])
-
-                    idx_h5 = idx_h5 + 1
-                idx = idx + 1
-
-    # Marker indicating we've processed this dataset
-    open(dataset_marker, 'w').close()
-    print(f'{datetime.now()}-Done.')
-
-
-def save_ply(points, filename, colors=None, normals=None):
-    vertex = np.core.records.fromarrays(points.transpose(), names='x, y, z', formats='f4, f4, f4')
-    n = len(vertex)
-    desc = vertex.dtype.descr
-
-    if normals is not None:
-        vertex_normal = np.core.records.fromarrays(normals.transpose(), names='nx, ny, nz', formats='f4, f4, f4')
-        assert len(vertex_normal) == n
-        desc = desc + vertex_normal.dtype.descr
-
-    if colors is not None:
-        vertex_color = np.core.records.fromarrays(colors.transpose() * 255, names='red, green, blue',
-                                                  formats='u1, u1, u1')
-        assert len(vertex_color) == n
-        desc = desc + vertex_color.dtype.descr
-
-    vertex_all = np.empty(n, dtype=desc)
-
-    for prop in vertex.dtype.names:
-        vertex_all[prop] = vertex[prop]
-
-    if normals is not None:
-        for prop in vertex_normal.dtype.names:
-            vertex_all[prop] = vertex_normal[prop]
-
-    if colors is not None:
-        for prop in vertex_color.dtype.names:
-            vertex_all[prop] = vertex_color[prop]
-
-    ply = plyfile.PlyData([plyfile.PlyElement.describe(vertex_all, 'vertex')], text=False)
-    if not os.path.exists(os.path.dirname(filename)):
-        os.makedirs(os.path.dirname(filename))
-    ply.write(filename)
-
-
-def save_ply_property(points, property, property_max, filename, cmap_name='tab20'):
-    point_num = points.shape[0]
-    colors = np.full(points.shape, 0.5)
-    cmap = cm.get_cmap(cmap_name)
-    for point_idx in range(point_num):
-        if property[point_idx] == 0:
-            colors[point_idx] = np.array([0, 0, 0])
-        else:
-            colors[point_idx] = cmap(property[point_idx] / property_max)[:3]
-    save_ply(points, filename, colors)
-
-
-def save_ply_color_batch(points_batch, colors_batch, file_path, points_num=None):
-    batch_size = points_batch.shape[0]
-    if not isinstance(file_path, (list, tuple)):
-        basename = os.path.splitext(file_path)[0]
-        ext = '.ply'
-    for batch_idx in range(batch_size):
-        point_num = points_batch.shape[1] if points_num is None else points_num[batch_idx]
-        if isinstance(file_path, (list, tuple)):
-            save_ply(points_batch[batch_idx][:point_num], file_path[batch_idx], colors_batch[batch_idx][:point_num])
-        else:
-            save_ply(points_batch[batch_idx][:point_num], f'{basename}_{batch_idx:04d}{ext}',
-                     colors_batch[batch_idx][:point_num])
-
-
-def save_ply_property_batch(points_batch, property_batch, file_path, points_num=None, property_max=None,
-                            cmap_name='tab20'):
-    batch_size = points_batch.shape[0]
-    if not isinstance(file_path, (list, tuple)):
-        basename = os.path.splitext(file_path)[0]
-        ext = '.ply'
-    property_max = np.max(property_batch) if property_max is None else property_max
-    for batch_idx in range(batch_size):
-        point_num = points_batch.shape[1] if points_num is None else points_num[batch_idx]
-        if isinstance(file_path, (list, tuple)):
-            save_ply_property(points_batch[batch_idx][:point_num], property_batch[batch_idx][:point_num],
-                              property_max, file_path[batch_idx], cmap_name)
-        else:
-            save_ply_property(points_batch[batch_idx][:point_num], property_batch[batch_idx][:point_num],
-                              property_max, f'{basename}_{batch_idx:04d}{ext}', cmap_name)
-
 
 if __name__ == '__main__':
     main()

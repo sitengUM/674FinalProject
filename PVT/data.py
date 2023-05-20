@@ -104,7 +104,6 @@ def load_data_cls(partition):
     all_label = np.concatenate(all_label, axis=0)
     return all_data, all_label
 
-
 class _ShapeNetDataset(Dataset):
     def __init__(self, num_points, partition='trainval', with_normal=True, with_one_hot_shape_id=True,
                  normalize=True, jitter=True):
@@ -231,6 +230,37 @@ class ModelNet40(Dataset):
 
     def __len__(self):
         return self.data.shape[0]
+
+
+def load_data_semantic(partition):
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    DATA_DIR = os.path.join(BASE_DIR, 'data/semantic3D')
+    if partition == "train":
+        default_data = os.path.join(DATA_DIR, 'bildstein_station1_xyz_intensity_rgb.txt')
+        default_label = os.path.join(DATA_DIR, 'bildstein_station1_xyz_intensity_rgb.labels')
+    else:
+        default_data = os.path.join(DATA_DIR, 'bildstein_station3_xyz_intensity_rgb.txt')
+        default_label = os.path.join(DATA_DIR, 'bildstein_station3_xyz_intensity_rgb.labels')
+
+    return default_data, default_label
+
+
+
+class Semantic3D(Dataset):
+    def __init__(self, num_points, partition='train'):
+        self.data, self.label = load_data_semantic(partition)
+        self.num_points = num_points
+        self.partition = partition
+
+    def __getitem__(self, item):
+        pointcloud = self.data[item][:self.num_points]
+        label = self.label[item]
+        if self.partition == 'train':
+            np.random.shuffle(pointcloud)
+        return pointcloud, label
+
+    def __len__(self):
+        return len(self.data)
 
 class S3DIS(Dataset):
     def __init__(self, num_points=4096, partition='train', test_area=5, with_normalized_coords=True):
