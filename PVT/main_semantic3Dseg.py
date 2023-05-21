@@ -78,6 +78,7 @@ def train(args, io):
             opt.zero_grad()
             seg_pred = model(data)
             seg_pred = seg_pred.permute(0, 2, 1).contiguous()
+            print(seg_pred.shape, seg.shape)
             loss = criterion(seg_pred.view(-1, 8), seg.view(-1, 1).squeeze())
             loss.backward()
             opt.step()

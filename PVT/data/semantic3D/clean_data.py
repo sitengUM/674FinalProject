@@ -20,6 +20,8 @@ def clean_data(data_name, training=True):
 
     data = data[undef_mask]
     labels = labels[undef_mask]
+    # our label started at 1, this subtraction changes it to start at 0
+    labels = [x - 1 for x in labels]
 
     end_time = time.time()
     print(f'{time.ctime(end_time)}: Saving cleaned files! Done in {end_time-start_time} seconds!')
