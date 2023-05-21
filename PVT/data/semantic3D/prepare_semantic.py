@@ -8,10 +8,12 @@ import plyfile
 from matplotlib import cm
 
 def main():
-    BASE_DIR = 'C:\\Users\\Andrew\\Desktop\\CS674\\FinalProject\\full_dataset\\train\\clean\\'
-    default_data =os.path.join(BASE_DIR,'points')
-    default_label =os.path.join(BASE_DIR,'labels')
-    default_h5dir = os.path.join(BASE_DIR,'h5dir')
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    #BASE_DIR = 'C:\\Users\\Andrew\\Desktop\\CS674\\FinalProject\\full_dataset\\train\\clean\\'
+    default_data =os.path.join(BASE_DIR,'full_dataset\\train\\clean\\points')
+    default_label =os.path.join(BASE_DIR,'full_dataset\\train\\clean\\labels')
+    default_h5dir = os.path.join(BASE_DIR,'full_dataset\\train\\clean\\h5dir')
+    print(default_data)
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--data', dest='data_dir', default=default_data,
                         help=f'Path to Semantic3D data (default is {default_data})')
@@ -37,19 +39,18 @@ def main():
     label_seg = np.zeros((batch_size, max_num_points), dtype=np.int32)
     indices_split_to_full = np.zeros((batch_size, max_num_points), dtype=np.int32)
 
-    #HAVEN'T LOOKED AT BELOW YET
-
     # Modified according to PointNet convensions.
     datasets = [dataset for dataset in os.listdir(args.data_dir)]
 
     for dataset_idx, dataset in enumerate(datasets):
+        #print(dataset)
         dataset_marker = os.path.join(args.data_dir, dataset[:-4]+'.dataset')
         if os.path.exists(dataset_marker):
             print(f'{datetime.now()}-{args.data_dir}/{dataset} already processed, skipping')
             continue
         dataset_file = os.path.join(args.data_dir, dataset)
         print(f'{datetime.now()}-Loading {dataset}...')
-
+        print(dataset_file)
         xyzirgb = np.load(dataset_file)
         xyzirgb[:, 0:3] -= np.amin(xyzirgb, axis=0)[0:3]
 
@@ -197,7 +198,7 @@ def main():
                     idx_in_batch = idx % batch_size
                     data[idx_in_batch, 0:point_num, ...] = block_xyzirgb[start:end, :]
                     data_num[idx_in_batch] = point_num
-                    label[idx_in_batch] = 0  # won't be used...
+                    label[idx_in_batch] = dataset_idx   # won't be used...
                     label_seg[idx_in_batch, 0:point_num] = block_labels[start:end]
                     indices_split_to_full[idx_in_batch, 0:point_num] = point_indices[start:end]
 
