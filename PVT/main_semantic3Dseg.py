@@ -38,9 +38,9 @@ def calculate_sem_IoU(pred_np, seg_np):
 
 def train(args, io):
     train_loader = DataLoader(Semantic3D(partition='train', num_points=args.num_points),
-                              num_workers=8, batch_size=args.batch_size, shuffle=True, drop_last=True)
+                              num_workers=16, batch_size=args.batch_size, shuffle=True, drop_last=True)
     test_loader = DataLoader(Semantic3D(partition='test', num_points=args.num_points),
-                             num_workers=8, batch_size=args.test_batch_size, shuffle=False, drop_last=False)
+                             num_workers=16, batch_size=args.test_batch_size, shuffle=False, drop_last=False)
 
     device = torch.device("cuda" if args.cuda else "cpu")
 
@@ -71,6 +71,8 @@ def train(args, io):
         ####################
         # Train
         ####################
+        start_time = time.time()
+
         model.train()
         for data, seg in train_loader:
             data, seg = torch.from_numpy(np.asarray(data)), torch.from_numpy(np.asarray(seg))
@@ -78,10 +80,11 @@ def train(args, io):
             opt.zero_grad()
             seg_pred = model(data)
             seg_pred = seg_pred.permute(0, 2, 1).contiguous()
-            print(seg_pred.shape, seg.shape)
             loss = criterion(seg_pred.view(-1, 8), seg.view(-1, 1).squeeze())
             loss.backward()
             opt.step()
+        train_loss_found_time = time.time()
+        print("time taken to train loss for 1 epoch: ", train_loss_found_time-start_time)
         if args.scheduler == 'cos':
             scheduler.step()
         elif args.scheduler == 'step':
@@ -94,7 +97,6 @@ def train(args, io):
         ####################
         # Test
         ####################
-        test_area = args.test_area
         test_loss = 0.0
         count = 0.0
         model.eval()
@@ -125,15 +127,17 @@ def train(args, io):
         test_true_seg = np.concatenate(test_true_seg, axis=0)
         test_pred_seg = np.concatenate(test_pred_seg, axis=0)
         test_ious = calculate_sem_IoU(test_pred_seg, test_true_seg)
-        outstr = 'test area: %s, loss: %.6f, test acc: %.6f, test avg acc: %.6f, test iou: %.6f' % (test_area,
+        outstr = 'loss: %.6f, test acc: %.6f, test avg acc: %.6f, test iou: %.6f' % (
                                                                                                     test_loss * 1.0 / count,
                                                                                                     test_acc,
                                                                                                     avg_per_class_acc,
                                                                                                     np.mean(test_ious))
         io.cprint(outstr)
+        end_epoch_time = time.time()
+        print("time taken for full epoch: ", end_epoch_time - start_time)
         if np.mean(test_ious) >= best_test_iou:
             best_test_iou = np.mean(test_ious)
-            torch.save(model.state_dict(), 'checkpoints/%s/model_seg_%s.t7' % (args.exp_name, args.test_area))
+            torch.save(model.state_dict(), 'checkpoints/%s/model_seg.t7' % (args.exp_name))
 
 def test(args, io):
     all_true_cls = []
@@ -178,7 +182,7 @@ def test(args, io):
             test_true_seg = np.concatenate(test_true_seg, axis=0)
             test_pred_seg = np.concatenate(test_pred_seg, axis=0)
             test_ious = calculate_sem_IoU(test_pred_seg, test_true_seg)
-            outstr = 'Test :: test area: %s, test acc: %.6f, test avg acc: %.6f, test iou: %.6f' % (test_area,
+            outstr = 'Test :: test acc: %.6f, test avg acc: %.6f, test iou: %.6f' % (
                                                                                                     test_acc,
                                                                                                     avg_per_class_acc,
                                                                                                     np.mean(test_ious))
@@ -213,11 +217,11 @@ if __name__ == "__main__":
                         help='Model to use, [pvt]')
     parser.add_argument('--dataset', type=str, default='Semantic3D', metavar='N',
                         choices=['Semantic3D'])
-    parser.add_argument('--batch_size', type=int, default=8, metavar='batch_size',
+    parser.add_argument('--batch_size', type=int, default=6, metavar='batch_size',
                         help='Size of batch)')
-    parser.add_argument('--test_batch_size', type=int, default=8, metavar='batch_size',
+    parser.add_argument('--test_batch_size', type=int, default=6, metavar='batch_size',
                         help='Size of batch)')
-    parser.add_argument('--epochs', type=int, default=50, metavar='N',
+    parser.add_argument('--epochs', type=int, default=10, metavar='N',
                         help='number of episode to train ')
     parser.add_argument('--use_sgd', type=bool, default=True,
                         help='Use SGD')
@@ -234,7 +238,7 @@ if __name__ == "__main__":
                         help='random seed (default: 1)')
     parser.add_argument('--eval', type=bool,  default=False,
                         help='evaluate the model')
-    parser.add_argument('--num_points', type=int, default=4096,
+    parser.add_argument('--num_points', type=int, default=1024,
                         help='num of points to use')
     parser.add_argument('--dropout', type=float, default=0.5,
                         help='dropout rate')
