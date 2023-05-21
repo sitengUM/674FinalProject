@@ -12,8 +12,8 @@ class pvt_semantic3Dseg(nn.Module):
 
     def __init__(self, seg_num_all=9, width_multiplier=1, voxel_resolution_multiplier=1):
         super().__init__()
-        self.in_channels = 9
-        self.num_classes = 9
+        self.in_channels = 10
+        self.num_classes = 8
 
         layers, channels_point, concat_channels_point = create_pointnet_components(
             blocks=self.blocks, in_channels=self.in_channels,width_multiplier=width_multiplier,
