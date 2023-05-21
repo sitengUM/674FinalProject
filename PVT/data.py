@@ -231,36 +231,62 @@ class ModelNet40(Dataset):
     def __len__(self):
         return self.data.shape[0]
 
-
-def load_data_semantic(partition):
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    DATA_DIR = os.path.join(BASE_DIR, 'data/semantic3D')
-    if partition == "train":
-        default_data = os.path.join(DATA_DIR, 'bildstein_station1_xyz_intensity_rgb.txt')
-        default_label = os.path.join(DATA_DIR, 'bildstein_station1_xyz_intensity_rgb.labels')
-    else:
-        default_data = os.path.join(DATA_DIR, 'bildstein_station3_xyz_intensity_rgb.txt')
-        default_label = os.path.join(DATA_DIR, 'bildstein_station3_xyz_intensity_rgb.labels')
-
-    return default_data, default_label
-
-
-
 class Semantic3D(Dataset):
     def __init__(self, num_points, partition='train'):
-        self.data, self.label = load_data_semantic(partition)
-        self.num_points = num_points
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+        self.root = os.path.join(BASE_DIR, 'semantic3D', 'full_dataset', 'train', 'clean', 'h5dir')
         self.partition = partition
+        self.num_points = num_points
+        # keep at most 20/30 files in memory
+        self.cache_size = 20 if partition == 'train' else 30
+        self.cache = {}
 
-    def __getitem__(self, item):
-        pointcloud = self.data[item][:self.num_points]
-        label = self.label[item]
-        if self.partition == 'train':
-            np.random.shuffle(pointcloud)
-        return pointcloud, label
+        # mapping batch index to corresponding file
 
+        self.num_scene_windows, self.max_num_points = 0, 0
+        index_to_filename = []
+        filename_to_start_index = {}
+
+        for current_file in os.listdir(self.root):
+            filename_to_start_index[current_file] = self.num_scene_windows
+            h5f = h5py.File(current_file, 'r')
+            num_windows = h5f['data'].shape[0]
+            self.num_scene_windows += num_windows
+            for i in range(num_windows):
+                index_to_filename.append(current_file)
+        self.index_to_filename = index_to_filename
+        self.filename_to_start_index = filename_to_start_index
+
+    def __getitem__(self, index):
+        filename = self.index_to_filename[index]
+        if filename not in self.cache.keys():
+            h5f = h5py.File(filename, 'r')
+            scene_data = h5f['data']
+            scene_label = h5f['label_seg']
+            scene_num_points = h5f['data_num']
+            if len(self.cache.keys()) < self.cache_size:
+                self.cache[filename] = (scene_data, scene_label, scene_num_points)
+            else:
+                victim_idx = np.random.randint(0, self.cache_size)
+                cache_keys = list(self.cache.keys())
+                cache_keys.sort()
+                self.cache.pop(cache_keys[victim_idx])
+                self.cache[filename] = (scene_data, scene_label, scene_num_points)
+        else:
+            scene_data, scene_label, scene_num_points = self.cache[filename]
+
+        internal_pos = index - self.filename_to_start_index[filename]
+        current_window_data = np.array(scene_data[internal_pos]).astype(np.float32)
+        current_window_label = np.array(scene_label[internal_pos]).astype(np.int64)
+        current_window_num_points = scene_num_points[internal_pos]
+
+        choices = np.random.choice(current_window_num_points, self.num_points,
+                                   replace=(current_window_num_points < self.num_points))
+        data = current_window_data[choices, ...].transpose()
+        label = current_window_label[choices]
+        return data, label
     def __len__(self):
-        return len(self.data)
+        return self.num_scene_windows
 
 class S3DIS(Dataset):
     def __init__(self, num_points=4096, partition='train', test_area=5, with_normalized_coords=True):
