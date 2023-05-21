@@ -234,7 +234,7 @@ class ModelNet40(Dataset):
 class Semantic3D(Dataset):
     def __init__(self, num_points, partition='train'):
         BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-        self.root = os.path.join(BASE_DIR, 'semantic3D', 'full_dataset', 'train', 'clean', 'h5dir')
+        self.root = os.path.join(BASE_DIR, 'data',  'semantic3D', 'full_dataset', 'train', 'clean', 'h5dir')
         self.partition = partition
         self.num_points = num_points
         # keep at most 20/30 files in memory
