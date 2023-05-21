@@ -25,10 +25,10 @@ def _init_():
 
 
 def calculate_sem_IoU(pred_np, seg_np):
-    I_all = np.zeros(9)
-    U_all = np.zeros(9)
+    I_all = np.zeros(8)
+    U_all = np.zeros(8)
     for sem_idx in range(seg_np.shape[0]):
-        for sem in range(9):
+        for sem in range(8):
             I = np.sum(np.logical_and(pred_np[sem_idx] == sem, seg_np[sem_idx] == sem))
             U = np.sum(np.logical_or(pred_np[sem_idx] == sem, seg_np[sem_idx] == sem))
             I_all[sem] += I
@@ -39,8 +39,6 @@ def calculate_sem_IoU(pred_np, seg_np):
 def train(args, io):
     train_loader = DataLoader(Semantic3D(partition='train', num_points=args.num_points),
                               num_workers=8, batch_size=args.batch_size, shuffle=True, drop_last=True)
-    for data, seg in train_loader:
-        print(len(data), data, seg, len(seg))
     test_loader = DataLoader(Semantic3D(partition='test', num_points=args.num_points),
                              num_workers=8, batch_size=args.test_batch_size, shuffle=False, drop_last=False)
 
@@ -75,14 +73,12 @@ def train(args, io):
         ####################
         model.train()
         for data, seg in train_loader:
-            print(type(data), type(seg))
-            print(len(data), data, seg, len(seg))
             data, seg = torch.from_numpy(np.asarray(data)), torch.from_numpy(np.asarray(seg))
             data, seg = data.to(device), seg.to(device)
             opt.zero_grad()
             seg_pred = model(data)
             seg_pred = seg_pred.permute(0, 2, 1).contiguous()
-            loss = criterion(seg_pred.view(-1, 9), seg.view(-1, 1).squeeze())
+            loss = criterion(seg_pred.view(-1, 8), seg.view(-1, 1).squeeze())
             loss.backward()
             opt.step()
         if args.scheduler == 'cos':
@@ -110,7 +106,7 @@ def train(args, io):
             batch_size = data.size()[0]
             seg_pred = model(data)
             seg_pred = seg_pred.permute(0, 2, 1).contiguous()
-            loss = criterion(seg_pred.view(-1, 9), seg.view(-1, 1).squeeze())
+            loss = criterion(seg_pred.view(-1, 8), seg.view(-1, 1).squeeze())
             pred = seg_pred.max(dim=2)[1]
             count += batch_size
             test_loss += loss.item() * batch_size

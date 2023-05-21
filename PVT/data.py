@@ -248,13 +248,14 @@ class Semantic3D(Dataset):
         filename_to_start_index = {}
 
         for current_file in os.listdir(self.root):
-            filename_to_start_index[current_file] = self.num_scene_windows
             current_path = os.path.join(self.root, current_file)
+            filename_to_start_index[current_path] = self.num_scene_windows
+
             h5f = h5py.File(current_path, 'r')
             num_windows = h5f['data'].shape[0]
             self.num_scene_windows += num_windows
             for i in range(num_windows):
-                index_to_filename.append(current_file)
+                index_to_filename.append(current_path)
         self.index_to_filename = index_to_filename
         self.filename_to_start_index = filename_to_start_index
 
