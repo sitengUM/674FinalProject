@@ -38,9 +38,9 @@ def calculate_sem_IoU(pred_np, seg_np):
 
 def train(args, io):
     train_loader = DataLoader(Semantic3D(partition='train', num_points=args.num_points),
-                              num_workers=16, batch_size=args.batch_size, shuffle=True, drop_last=True)
+                              num_workers=12, batch_size=args.batch_size, shuffle=True, drop_last=True)
     test_loader = DataLoader(Semantic3D(partition='test', num_points=args.num_points),
-                             num_workers=16, batch_size=args.test_batch_size, shuffle=False, drop_last=False)
+                             num_workers=12, batch_size=args.test_batch_size, shuffle=False, drop_last=False)
 
     device = torch.device("cuda" if args.cuda else "cpu")
 
@@ -83,8 +83,6 @@ def train(args, io):
             loss = criterion(seg_pred.view(-1, 8), seg.view(-1, 1).squeeze())
             loss.backward()
             opt.step()
-        train_loss_found_time = time.time()
-        print("time taken to train loss for 1 epoch: ", train_loss_found_time-start_time)
         if args.scheduler == 'cos':
             scheduler.step()
         elif args.scheduler == 'step':
@@ -217,15 +215,15 @@ if __name__ == "__main__":
                         help='Model to use, [pvt]')
     parser.add_argument('--dataset', type=str, default='Semantic3D', metavar='N',
                         choices=['Semantic3D'])
-    parser.add_argument('--batch_size', type=int, default=6, metavar='batch_size',
+    parser.add_argument('--batch_size', type=int, default=8, metavar='batch_size',
                         help='Size of batch)')
-    parser.add_argument('--test_batch_size', type=int, default=6, metavar='batch_size',
+    parser.add_argument('--test_batch_size', type=int, default=8, metavar='batch_size',
                         help='Size of batch)')
     parser.add_argument('--epochs', type=int, default=10, metavar='N',
                         help='number of episode to train ')
     parser.add_argument('--use_sgd', type=bool, default=True,
                         help='Use SGD')
-    parser.add_argument('--lr', type=float, default=0.001, metavar='LR',
+    parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
                         help='learning rate (default: 0.001, 0.1 if using sgd)')
     parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
                         help='SGD momentum (default: 0.9)')
