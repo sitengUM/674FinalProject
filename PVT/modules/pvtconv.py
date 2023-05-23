@@ -357,6 +357,7 @@ class SemPVTConv(nn.Module):
 
     def forward(self, inputs):
         features, coords = inputs
+        #print(features, coords)
         voxel_features, voxel_coords = self.voxelization(features, coords)
         voxel_features = self.voxel_encoder(voxel_features)
         voxel_features = self.SE(voxel_features)
@@ -366,5 +367,5 @@ class SemPVTConv(nn.Module):
         rel_pos = rel_pos.sum(dim=-1)
         #one= self.point_features(features)
         #print(one)
-        fused_features = voxel_features + self.point_features(features,rel_pos)
+        fused_features = voxel_features + self.point_features(features, rel_pos)
         return fused_features, coords

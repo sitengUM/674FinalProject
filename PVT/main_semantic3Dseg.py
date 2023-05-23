@@ -74,13 +74,19 @@ def train(args, io):
         start_time = time.time()
 
         model.train()
+        count = 0
         for data, seg in train_loader:
+            count +=1
             data, seg = torch.from_numpy(np.asarray(data)), torch.from_numpy(np.asarray(seg))
             data, seg = data.to(device), seg.to(device)
             opt.zero_grad()
             seg_pred = model(data)
             seg_pred = seg_pred.permute(0, 2, 1).contiguous()
             loss = criterion(seg_pred.view(-1, 8), seg.view(-1, 1).squeeze())
+            print(loss)
+            if count == 10:
+                print("time to break")
+                break
             loss.backward()
             opt.step()
         if args.scheduler == 'cos':
@@ -133,81 +139,64 @@ def train(args, io):
         io.cprint(outstr)
         end_epoch_time = time.time()
         print("time taken for full epoch: ", end_epoch_time - start_time)
-        if np.mean(test_ious) >= best_test_iou:
-            best_test_iou = np.mean(test_ious)
-            torch.save(model.state_dict(), 'checkpoints/%s/model_seg.t7' % (args.exp_name))
+        #if np.mean(test_ious) >= best_test_iou:
+        #    best_test_iou = np.mean(test_ious)
+        torch.save(model.state_dict(), 'checkpoints/%s/model_seg.t7' % (args.exp_name))
 
 def test(args, io):
     all_true_cls = []
     all_pred_cls = []
     all_true_seg = []
     all_pred_seg = []
-    for test_area in range(1,7):
-        test_area = str(test_area)
-        if (args.test_area == 'all') or (test_area == args.test_area):
-            test_loader = DataLoader(Semantic3D(partition='test', num_points=args.num_points),
-                                     batch_size=args.test_batch_size, shuffle=False, drop_last=False)
 
-            device = torch.device("cuda" if args.cuda else "cpu")
+    test_loader = DataLoader(Semantic3D(partition='test', num_points=args.num_points),
+                             batch_size=args.test_batch_size, shuffle=False, drop_last=False)
 
-            #Try to load models
-            if args.model == 'pvt':
-                model = pvt_semantic3Dseg(args).to(device)
-            else:
-                raise Exception("Not implemented")
-            model.load_state_dict(torch.load(os.path.join(args.model_root, 'model_seg_%s.t7' % test_area)))
-            model = model.eval()
-            test_true_cls = []
-            test_pred_cls = []
-            test_true_seg = []
-            test_pred_seg = []
-            for data, seg in test_loader:
-                data, seg = data.to(device), seg.to(device)
-                seg_pred = model(data)
-                seg_pred = seg_pred.permute(0, 2, 1).contiguous()
-                pred = seg_pred.max(dim=2)[1]
-                seg_np = seg.cpu().numpy()
-                pred_np = pred.detach().cpu().numpy()
-                test_true_cls.append(seg_np.reshape(-1))
-                test_pred_cls.append(pred_np.reshape(-1))
-                test_true_seg.append(seg_np)
-                test_pred_seg.append(pred_np)
-            # sys.exit(0)
-            test_true_cls = np.concatenate(test_true_cls)
-            test_pred_cls = np.concatenate(test_pred_cls)
-            test_acc = metrics.accuracy_score(test_true_cls, test_pred_cls)
-            avg_per_class_acc = metrics.balanced_accuracy_score(test_true_cls, test_pred_cls)
-            test_true_seg = np.concatenate(test_true_seg, axis=0)
-            test_pred_seg = np.concatenate(test_pred_seg, axis=0)
-            test_ious = calculate_sem_IoU(test_pred_seg, test_true_seg)
-            outstr = 'Test :: test acc: %.6f, test avg acc: %.6f, test iou: %.6f' % (
-                                                                                                    test_acc,
-                                                                                                    avg_per_class_acc,
-                                                                                                    np.mean(test_ious))
-            io.cprint(outstr)
-            all_true_cls.append(test_true_cls)
-            all_pred_cls.append(test_pred_cls)
-            all_true_seg.append(test_true_seg)
-            all_pred_seg.append(test_pred_seg)
+    device = torch.device("cuda" if args.cuda else "cpu")
 
-    if args.test_area == 'all':
-        all_true_cls = np.concatenate(all_true_cls)
-        all_pred_cls = np.concatenate(all_pred_cls)
-        all_acc = metrics.accuracy_score(all_true_cls, all_pred_cls)
-        avg_per_class_acc = metrics.balanced_accuracy_score(all_true_cls, all_pred_cls)
-        all_true_seg = np.concatenate(all_true_seg, axis=0)
-        all_pred_seg = np.concatenate(all_pred_seg, axis=0)
-        all_ious = calculate_sem_IoU(all_pred_seg, all_true_seg)
-        outstr = 'Overall Test :: test acc: %.6f, test avg acc: %.6f, test iou: %.6f' % (all_acc,
-                                                                                         avg_per_class_acc,
-                                                                                         np.mean(all_ious))
-        io.cprint(outstr)
-
-
+    #Try to load models
+    if args.model == 'pvt':
+        model = pvt_semantic3Dseg(args).to(device)
+    else:
+        raise Exception("Not implemented")
+    model.load_state_dict(torch.load(os.path.join(args.model_root, 'model_seg_%s.t7')))
+    model = model.eval()
+    test_true_cls = []
+    test_pred_cls = []
+    test_true_seg = []
+    test_pred_seg = []
+    for data, seg in test_loader:
+        data, seg = data.to(device), seg.to(device)
+        seg_pred = model(data)
+        seg_pred = seg_pred.permute(0, 2, 1).contiguous()
+        pred = seg_pred.max(dim=2)[1]
+        seg_np = seg.cpu().numpy()
+        pred_np = pred.detach().cpu().numpy()
+        test_true_cls.append(seg_np.reshape(-1))
+        test_pred_cls.append(pred_np.reshape(-1))
+        test_true_seg.append(seg_np)
+        test_pred_seg.append(pred_np)
+    # sys.exit(0)
+    test_true_cls = np.concatenate(test_true_cls)
+    test_pred_cls = np.concatenate(test_pred_cls)
+    test_acc = metrics.accuracy_score(test_true_cls, test_pred_cls)
+    avg_per_class_acc = metrics.balanced_accuracy_score(test_true_cls, test_pred_cls)
+    test_true_seg = np.concatenate(test_true_seg, axis=0)
+    test_pred_seg = np.concatenate(test_pred_seg, axis=0)
+    test_ious = calculate_sem_IoU(test_pred_seg, test_true_seg)
+    outstr = 'Test :: test acc: %.6f, test avg acc: %.6f, test iou: %.6f' % (
+                                                                                            test_acc,
+                                                                                            avg_per_class_acc,
+                                                                                            np.mean(test_ious))
+    io.cprint(outstr)
+    all_true_cls.append(test_true_cls)
+    all_pred_cls.append(test_pred_cls)
+    all_true_seg.append(test_true_seg)
+    all_pred_seg.append(test_pred_seg)
 
 if __name__ == "__main__":
     # Training settings
-    parser = argparse.ArgumentParser(description='Point Cloud Part Segmentation')
+    parser = argparse.ArgumentParser(description='Semantic3D Part Segmentation')
     parser.add_argument('--exp_name', type=str, default='semantic3Dseg', metavar='N',
                         help='Name of the experiment')
     parser.add_argument('--model', type=str, default='pvt', metavar='N',
@@ -215,15 +204,15 @@ if __name__ == "__main__":
                         help='Model to use, [pvt]')
     parser.add_argument('--dataset', type=str, default='Semantic3D', metavar='N',
                         choices=['Semantic3D'])
-    parser.add_argument('--batch_size', type=int, default=8, metavar='batch_size',
+    parser.add_argument('--batch_size', type=int, default=6, metavar='batch_size',
                         help='Size of batch)')
-    parser.add_argument('--test_batch_size', type=int, default=8, metavar='batch_size',
+    parser.add_argument('--test_batch_size', type=int, default=6, metavar='batch_size',
                         help='Size of batch)')
     parser.add_argument('--epochs', type=int, default=10, metavar='N',
                         help='number of episode to train ')
     parser.add_argument('--use_sgd', type=bool, default=True,
                         help='Use SGD')
-    parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
+    parser.add_argument('--lr', type=float, default=0.0001, metavar='LR',
                         help='learning rate (default: 0.001, 0.1 if using sgd)')
     parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
                         help='SGD momentum (default: 0.9)')
@@ -236,7 +225,7 @@ if __name__ == "__main__":
                         help='random seed (default: 1)')
     parser.add_argument('--eval', type=bool,  default=False,
                         help='evaluate the model')
-    parser.add_argument('--num_points', type=int, default=1024,
+    parser.add_argument('--num_points', type=int, default=2048,
                         help='num of points to use')
     parser.add_argument('--dropout', type=float, default=0.5,
                         help='dropout rate')

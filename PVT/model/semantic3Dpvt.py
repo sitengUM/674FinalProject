@@ -38,13 +38,17 @@ class pvt_semantic3Dseg(nn.Module):
             inputs = inputs['features']
 
         coords = inputs[:, :3, :]
+
         out_features_list = []
         for i in range(len(self.point_features)):
             inputs, _ = self.point_features[i]((inputs, coords))
+            #if i == 0 or i == 1:
+            print("INPUTS ", i, " ", inputs.shape, " ", inputs[:1])
             out_features_list.append(inputs)
         a = self.cloud_features(inputs.max(dim=-1, keepdim=False).values)
         b = self.cloud_features(inputs.mean(dim=-1, keepdim=False))
+        #print("AAAAA", a)
         out_features_list.append(a.unsqueeze(-1).repeat([1, 1, coords.size(-1)]))
         out_features_list.append(b.unsqueeze(-1).repeat([1, 1, coords.size(-1)]))
-
-        return self.classifier(torch.cat(out_features_list, dim=1))
+        num = self.classifier(torch.cat(out_features_list, dim=1))
+        return num
