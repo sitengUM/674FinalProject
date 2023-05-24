@@ -37,9 +37,9 @@ def calculate_sem_IoU(pred_np, seg_np):
 
 
 def train(args, io):
-    train_loader = DataLoader(Semantic3D(partition='train', num_points=args.num_points),
+    train_loader = DataLoader(Semantic3D(partition='train', num_points=args.num_points, validate=True),
                               num_workers=12, batch_size=args.batch_size, shuffle=True, drop_last=True)
-    test_loader = DataLoader(Semantic3D(partition='test', num_points=args.num_points),
+    test_loader = DataLoader(Semantic3D(partition='test', num_points=args.num_points, validate=True),
                              num_workers=12, batch_size=args.test_batch_size, shuffle=False, drop_last=False)
 
     device = torch.device("cuda" if args.cuda else "cpu")
@@ -83,10 +83,7 @@ def train(args, io):
             seg_pred = model(data)
             seg_pred = seg_pred.permute(0, 2, 1).contiguous()
             loss = criterion(seg_pred.view(-1, 8), seg.view(-1, 1).squeeze())
-            print(loss)
-            if count == 10:
-                print("time to break")
-                break
+            #print(loss)
             loss.backward()
             opt.step()
         if args.scheduler == 'cos':
@@ -149,7 +146,7 @@ def test(args, io):
     all_true_seg = []
     all_pred_seg = []
 
-    test_loader = DataLoader(Semantic3D(partition='test', num_points=args.num_points),
+    test_loader = DataLoader(Semantic3D(partition='test', num_points=args.num_points, validate=False),
                              batch_size=args.test_batch_size, shuffle=False, drop_last=False)
 
     device = torch.device("cuda" if args.cuda else "cpu")
@@ -159,7 +156,7 @@ def test(args, io):
         model = pvt_semantic3Dseg(args).to(device)
     else:
         raise Exception("Not implemented")
-    model.load_state_dict(torch.load(os.path.join(args.model_root, 'model_seg_%s.t7')))
+    model.load_state_dict(torch.load(os.path.join(args.model_root, 'model_seg.t7')))
     model = model.eval()
     test_true_cls = []
     test_pred_cls = []
@@ -204,15 +201,15 @@ if __name__ == "__main__":
                         help='Model to use, [pvt]')
     parser.add_argument('--dataset', type=str, default='Semantic3D', metavar='N',
                         choices=['Semantic3D'])
-    parser.add_argument('--batch_size', type=int, default=6, metavar='batch_size',
+    parser.add_argument('--batch_size', type=int, default=8, metavar='batch_size',
                         help='Size of batch)')
-    parser.add_argument('--test_batch_size', type=int, default=6, metavar='batch_size',
+    parser.add_argument('--test_batch_size', type=int, default=8, metavar='batch_size',
                         help='Size of batch)')
     parser.add_argument('--epochs', type=int, default=10, metavar='N',
                         help='number of episode to train ')
-    parser.add_argument('--use_sgd', type=bool, default=True,
+    parser.add_argument('--use_sgd', type=bool, default=False,
                         help='Use SGD')
-    parser.add_argument('--lr', type=float, default=0.0001, metavar='LR',
+    parser.add_argument('--lr', type=float, default=0.002, metavar='LR',
                         help='learning rate (default: 0.001, 0.1 if using sgd)')
     parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
                         help='SGD momentum (default: 0.9)')
@@ -225,7 +222,7 @@ if __name__ == "__main__":
                         help='random seed (default: 1)')
     parser.add_argument('--eval', type=bool,  default=False,
                         help='evaluate the model')
-    parser.add_argument('--num_points', type=int, default=2048,
+    parser.add_argument('--num_points', type=int, default=1024,
                         help='num of points to use')
     parser.add_argument('--dropout', type=float, default=0.5,
                         help='dropout rate')

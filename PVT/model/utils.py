@@ -45,7 +45,7 @@ def create_mlp_components(in_channels, out_channels, classifier=False, dim=2, wi
     return layers, out_channels[-1] if classifier else int(r * out_channels[-1])
 
 
-def create_pointnet_components(blocks, in_channels, normalize=True, eps=0,
+def create_pointnet_components(blocks, in_channels, normalize=True, eps=1e-08,
                                width_multiplier=1, voxel_resolution_multiplier=1,model=''):
     r, vr = width_multiplier, voxel_resolution_multiplier
 
