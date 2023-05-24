@@ -83,7 +83,6 @@ def train(args, io):
             seg_pred = model(data)
             seg_pred = seg_pred.permute(0, 2, 1).contiguous()
             loss = criterion(seg_pred.view(-1, 8), seg.view(-1, 1).squeeze())
-            #print(loss)
             loss.backward()
             opt.step()
         if args.scheduler == 'cos':
